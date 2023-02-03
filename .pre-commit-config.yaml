@@ -1,0 +1,17 @@
+# Reference: https://ljvmiranda921.github.io/notebook/2018/06/21/precommits-using-black-and-flake8/
+# After running `pre-commit install`, the `./text-analytics-blueprints/.git/hooks/pre-commit` hook will be updated
+repos:
+  - repo: https://github.com/psf/black
+    rev: 22.1.0
+    hooks:
+      - id: black
+        language_version: python3.6
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v1.2.3
+    hooks:
+     - id: flake8
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        name: isort (python)
