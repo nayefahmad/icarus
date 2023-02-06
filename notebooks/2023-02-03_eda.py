@@ -46,6 +46,9 @@ x.sort_values().plot.hist()
 plt.show()
 
 x1 = df_join.query("on_ground == 1")
+txt = "There is a flight that was on-ground before reaching runway"
+assert min(x1["distance_from_threshold"]) < 0, txt
+
 x1 = x1.groupby("key").size()
 assert min(x1) == 3
 x1.sort_values().plot.hist()
@@ -59,17 +62,23 @@ plt.show()
 
 result = {}
 for key in df_adsb_train["key"].unique():
-    # do stuff
-    result["key"] = key
+    tmp = df_adsb_train.query("key == @key").sort_values("last_update")
+    touchdown_idx = (tmp["on_ground"].values == 1).argmax()
+    idx = [touchdown_idx - 2, touchdown_idx - 1, touchdown_idx, touchdown_idx + 1]
 
-    cols = [
+    distance_from_threshold_vals = (
+        tmp["distance_from_threshold"].iloc[idx].reset_index(drop=True)
+    )
+
+    result[key] = distance_from_threshold_vals.values
+
+df = pd.DataFrame(
+    result.values(),
+    index=result.keys(),
+    columns=[
         "distance_from_threshold_minus1",
         "distance_from_threshold_minus2",
         "distance_from_threshold_0",
         "distance_from_threshold_plus1",
-    ]
-
-    for col in cols:
-        result[col] = "val"
-
-pd.DataFrame(result, index=range(1500))
+    ],
+)
