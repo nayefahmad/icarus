@@ -46,8 +46,8 @@ x.sort_values().plot.hist()
 plt.show()
 
 x1 = df_join.query("on_ground == 1")
-txt = "There is a flight that was on-ground before reaching runway"
-assert min(x1["distance_from_threshold"]) < 0, txt
+err_txt = "There is a flight that was on-ground before reaching runway"
+assert min(x1["distance_from_threshold"]) < 0, err_txt
 
 x1 = x1.groupby("key").size()
 assert min(x1) == 3
@@ -60,25 +60,43 @@ assert min(x2) == 5
 x2.sort_values().plot.hist()
 plt.show()
 
+
+# ## Set up X df
+
+cols_X = [
+    "key",
+    "distance_from_threshold",
+    "track",
+    "geometric_vertical_rate",
+    "geometric_height",
+    "touchdown_distance",
+]
+
 result = {}
 for key in df_adsb_train["key"].unique():
-    tmp = df_adsb_train.query("key == @key").sort_values("last_update")
+    tmp = df_join.query("key == @key").sort_values("last_update")
     touchdown_idx = (tmp["on_ground"].values == 1).argmax()
     idx = [touchdown_idx - 2, touchdown_idx - 1, touchdown_idx, touchdown_idx + 1]
 
-    distance_from_threshold_vals = (
-        tmp["distance_from_threshold"].iloc[idx].reset_index(drop=True)
-    )
+    vals = []
+    for col in cols_X:
+        if col == "key":
+            continue
+        vals_tmp = tmp[col].iloc[idx].reset_index(drop=True)
+        vals.append(vals_tmp.values.tolist())
 
-    result[key] = distance_from_threshold_vals.values
+    result[key] = vals  # todo: flatten
+
+suffixes = ["_minus1", "_minus2", "_0", "_plus1"]
+cols_suffixed = []  # todo: flatten
+for col in cols_X:
+    if col == "key":
+        continue
+    tmp = [f"{col}{suff}" for suff in suffixes]
+    cols_suffixed.append(tmp)
 
 df = pd.DataFrame(
     result.values(),
     index=result.keys(),
-    columns=[
-        "distance_from_threshold_minus1",
-        "distance_from_threshold_minus2",
-        "distance_from_threshold_0",
-        "distance_from_threshold_plus1",
-    ],
+    # columns=cols_suffixed
 )
