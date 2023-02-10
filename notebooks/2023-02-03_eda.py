@@ -1,6 +1,8 @@
 # # EDA for landing distance modeling competition
 
+from itertools import chain
 from pathlib import Path
+from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -42,7 +44,8 @@ df_join.info()
 
 x = df_join.groupby("key").size()
 assert min(x) == 15
-x.sort_values().plot.hist()
+txt = "Distribution of row count per key"
+x.sort_values().plot.hist(title="txt")
 plt.show()
 
 x1 = df_join.query("on_ground == 1")
@@ -51,13 +54,15 @@ assert min(x1["distance_from_threshold"]) < 0, err_txt
 
 x1 = x1.groupby("key").size()
 assert min(x1) == 3
-x1.sort_values().plot.hist()
+txt = "Distribution of row count per key \nFilter: on_ground=1"
+x1.sort_values().plot.hist(title=txt)
 plt.show()
 
 x2 = df_join.query("on_ground == 0")
 x2 = x2.groupby("key").size()
 assert min(x2) == 5
-x2.sort_values().plot.hist()
+txt = "Distribution of row count per key \nFilter: on_ground=0"
+x2.sort_values().plot.hist(title=txt)
 plt.show()
 
 
@@ -72,31 +77,51 @@ cols_X = [
     "touchdown_distance",
 ]
 
-result = {}
-for key in df_adsb_train["key"].unique():
-    tmp = df_join.query("key == @key").sort_values("last_update")
-    touchdown_idx = (tmp["on_ground"].values == 1).argmax()
-    idx = [touchdown_idx - 2, touchdown_idx - 1, touchdown_idx, touchdown_idx + 1]
 
-    vals = []
-    for col in cols_X:
+def pull_values_by_index_from_on_ground(
+    df: pd.DataFrame, cols: List = None
+) -> pd.DataFrame:
+    """
+    todo: finish this
+    """
+
+    result = {}
+    for key in df["key"].unique():
+        tmp = df.query("key == @key").sort_values("last_update")
+        touchdown_idx = (tmp["on_ground"].values == 1).argmax()
+        idx = [touchdown_idx - 2, touchdown_idx - 1, touchdown_idx, touchdown_idx + 1]
+
+        vals = []
+        for col in cols:
+            if col == "key":
+                continue
+            vals_tmp = tmp[col].iloc[idx].reset_index(drop=True)
+            vals.append(vals_tmp.values.tolist())
+
+        vals = list(chain(*vals))
+        result[key] = vals
+
+    cols_suffixed = add_col_suffixes(cols)
+
+    df = (
+        pd.DataFrame(result.values(), index=result.keys(), columns=cols_suffixed)
+        .reset_index()
+        .rename(columns={"index": "key"})
+    )
+
+    return df
+
+
+def add_col_suffixes(cols: List = None) -> List:
+    suffixes = ["_minus2", "_minus1", "_0", "_plus1"]
+    cols_suffixed = []
+    for col in cols:
         if col == "key":
             continue
-        vals_tmp = tmp[col].iloc[idx].reset_index(drop=True)
-        vals.append(vals_tmp.values.tolist())
+        tmp = [f"{col}{suff}" for suff in suffixes]
+        cols_suffixed.append(tmp)
+    cols_suffixed = list(chain(*cols_suffixed))
+    return cols_suffixed
 
-    result[key] = vals  # todo: flatten
 
-suffixes = ["_minus1", "_minus2", "_0", "_plus1"]
-cols_suffixed = []  # todo: flatten
-for col in cols_X:
-    if col == "key":
-        continue
-    tmp = [f"{col}{suff}" for suff in suffixes]
-    cols_suffixed.append(tmp)
-
-df = pd.DataFrame(
-    result.values(),
-    index=result.keys(),
-    # columns=cols_suffixed
-)
+pull_values_by_index_from_on_ground(df_join, cols_X)
