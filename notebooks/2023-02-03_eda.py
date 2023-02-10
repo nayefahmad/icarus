@@ -82,7 +82,9 @@ def pull_values_by_index_from_on_ground(
     df: pd.DataFrame, cols: List = None
 ) -> pd.DataFrame:
     """
-    todo: finish this
+    This function takes `df` and converts values in `cols` from long to wide. It picks
+    four sequential values in each col, and converts to four cols. In each case, the
+    values are picked relative to the row where col `on_ground` first takes value 1.
     """
 
     result = {}
