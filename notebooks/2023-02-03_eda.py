@@ -11,8 +11,14 @@ from lazypredict.Supervised import LazyRegressor
 
 data_path = Path(r"C:\Nayef\icarus\data")
 
-df_adsb_train = pd.read_csv(data_path.joinpath("adsb_train.csv"))
+df_adsb_train = pd.read_csv(data_path.joinpath("adsb_train.csv"))  # todo: split this
+df_adsb_test = pd.read_csv(
+    data_path.joinpath("adsb_test.csv")
+)  # todo: use only for inference
+
 df_qar_train = pd.read_csv(data_path.joinpath("qar_train.csv"))
+df_qar_test = pd.read_csv(data_path.joinpath("qar_test.csv"))  # todo: doesn't exist
+
 df_altitude_train = pd.read_csv(data_path.joinpath("train_altitude_at_landing.csv"))
 
 pipe_adsb = pdp.PdPipeline(
@@ -26,6 +32,7 @@ pipe_adsb = pdp.PdPipeline(
 df_adsb_train = pipe_adsb(df_adsb_train)
 df_adsb_train.info()
 df_adsb_train.describe(include="all").T
+df_adsb_test = pipe_adsb(df_adsb_test)
 
 pipe_qar = pdp.PdPipeline([pdp.ColumnDtypeEnforcer({"key": pd.StringDtype()})])
 df_qar_train = pipe_qar(df_qar_train)
@@ -127,12 +134,15 @@ def add_col_suffixes(cols: List = None) -> List:
 
 
 # train data
-df_X = pull_values_by_index_from_on_ground(df_adsb_train, cols_X)
-df_train = df_X.merge(df_qar_train, on="key")
+df_X_train = pull_values_by_index_from_on_ground(df_adsb_train, cols_X)
+df_train = df_X_train.merge(df_qar_train, on="key")
+df_y_train = df_train["touchdown_distance"]
 
 # test data
-# df_X_test = pull_values_by_index_from_on_ground()
+df_X_test = pull_values_by_index_from_on_ground(df_adsb_test, cols_X)
+df_test = df_X_test.merge(df_qar_test)
+df_y_test = df_test["touchdown_distance"]
 
 
 reg = LazyRegressor()
-# models, preds = reg.fit(X_train, X_test, y_train, y_test)
+models, preds = reg.fit(df_X_train, df_X_test, df_y_train, df_y_test)
