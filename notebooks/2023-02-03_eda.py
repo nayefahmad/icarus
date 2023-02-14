@@ -7,6 +7,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import pandas as pd
 import pdpipe as pdp
+from lazypredict.Supervised import LazyRegressor
 
 data_path = Path(r"C:\Nayef\icarus\data")
 
@@ -74,7 +75,6 @@ cols_X = [
     "track",
     "geometric_vertical_rate",
     "geometric_height",
-    "touchdown_distance",
 ]
 
 
@@ -126,4 +126,13 @@ def add_col_suffixes(cols: List = None) -> List:
     return cols_suffixed
 
 
-pull_values_by_index_from_on_ground(df_join, cols_X)
+# train data
+df_X = pull_values_by_index_from_on_ground(df_adsb_train, cols_X)
+df_train = df_X.merge(df_qar_train, on="key")
+
+# test data
+# df_X_test = pull_values_by_index_from_on_ground()
+
+
+reg = LazyRegressor()
+# models, preds = reg.fit(X_train, X_test, y_train, y_test)
