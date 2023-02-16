@@ -1,5 +1,7 @@
 # # EDA for landing distance modeling competition
 
+import math
+import random
 from itertools import chain
 from pathlib import Path
 from typing import List
@@ -11,15 +13,38 @@ from lazypredict.Supervised import LazyRegressor
 
 data_path = Path(r"C:\Nayef\icarus\data")
 
-df_adsb_train = pd.read_csv(data_path.joinpath("adsb_train.csv"))  # todo: split this
-df_adsb_test = pd.read_csv(
-    data_path.joinpath("adsb_test.csv")
-)  # todo: use only for inference
+# ## Read in data
 
-df_qar_train = pd.read_csv(data_path.joinpath("qar_train.csv"))
-df_qar_test = pd.read_csv(data_path.joinpath("qar_test.csv"))  # todo: doesn't exist
+df_adsb = pd.read_csv(data_path.joinpath("adsb_train.csv"))
+keys = df_adsb["key"].unique().tolist()
+train_proportion = 0.8
+train_keys = random.sample(keys, math.ceil(len(keys) * train_proportion))
+test_keys = list(set(keys) - set(train_keys))
 
-df_altitude_train = pd.read_csv(data_path.joinpath("train_altitude_at_landing.csv"))
+# df for training and CV-based training:
+df_adsb_train = df_adsb.query("key in @train_keys")
+df_adsb_validation = df_adsb.query("key in @test_keys")  # for model selection
+df_adsb_test = pd.read_csv(data_path.joinpath("adsb_test.csv"))  # final model only
+
+# todo: use altitude in training and final model inference
+df_altitude = pd.read_csv(data_path.joinpath("train_altitude_at_landing.csv"))
+
+# df for training and CV-based training:
+df_altitude_train = df_altitude.query("key in @train_keys")
+df_altitude_validation = df_altitude.query("key in @test_keys")  # for model selection
+# final model only:
+df_altitude_test = pd.read_csv(data_path.joinpath("train_altitude_at_landing.csv"))
+
+# labels datasets:
+df_qar = pd.read_csv(data_path.joinpath("qar_train.csv"))
+
+# df for training and CV-based training:
+df_qar_train = df_qar.query("key in @train_keys")
+df_qar_validation = df_qar.query("key in @test_keys")  # for model selection
+df_qar_test = "haha, that would be too easy"  # doesn't exist
+
+
+# ## Pipelines
 
 pipe_adsb = pdp.PdPipeline(
     [
@@ -32,17 +57,21 @@ pipe_adsb = pdp.PdPipeline(
 df_adsb_train = pipe_adsb(df_adsb_train)
 df_adsb_train.info()
 df_adsb_train.describe(include="all").T
+df_adsb_validation = pipe_adsb(df_adsb_validation)
 df_adsb_test = pipe_adsb(df_adsb_test)
-
-pipe_qar = pdp.PdPipeline([pdp.ColumnDtypeEnforcer({"key": pd.StringDtype()})])
-df_qar_train = pipe_qar(df_qar_train)
-df_qar_train.info()
-df_qar_train.describe(include="all").T
 
 pipe_altitude = pdp.PdPipeline([pdp.ColumnDtypeEnforcer({"key": pd.StringDtype()})])
 df_altitude_train = pipe_altitude(df_altitude_train)
 df_altitude_train.info()
 df_altitude_train.describe(include="all").T
+df_altitude_validation = pipe_altitude(df_altitude_validation)
+df_altitude_test = pipe_altitude(df_altitude_test)
+
+pipe_qar = pdp.PdPipeline([pdp.ColumnDtypeEnforcer({"key": pd.StringDtype()})])
+df_qar_train = pipe_qar(df_qar_train)
+df_qar_train.info()
+df_qar_train.describe(include="all").T
+df_qar_validation = pipe_qar(df_qar_validation)
 
 
 # ## Join train datasets
@@ -50,28 +79,30 @@ df_altitude_train.describe(include="all").T
 df_join = df_adsb_train.merge(df_qar_train, on="key").merge(df_altitude_train, on="key")
 df_join.info()
 
-x = df_join.groupby("key").size()
-assert min(x) == 15
-txt = "Distribution of row count per key"
-x.sort_values().plot.hist(title="txt")
-plt.show()
+rerun_eda = False
+if rerun_eda:
+    x = df_join.groupby("key").size()
+    assert min(x) == 15
+    txt = "Distribution of row count per key"
+    x.sort_values().plot.hist(title="txt")
+    plt.show()
 
-x1 = df_join.query("on_ground == 1")
-err_txt = "There is a flight that was on-ground before reaching runway"
-assert min(x1["distance_from_threshold"]) < 0, err_txt
+    x1 = df_join.query("on_ground == 1")
+    err_txt = "There is a flight that was on-ground before reaching runway"
+    assert min(x1["distance_from_threshold"]) < 0, err_txt
 
-x1 = x1.groupby("key").size()
-assert min(x1) == 3
-txt = "Distribution of row count per key \nFilter: on_ground=1"
-x1.sort_values().plot.hist(title=txt)
-plt.show()
+    x1 = x1.groupby("key").size()
+    assert min(x1) == 3
+    txt = "Distribution of row count per key \nFilter: on_ground=1"
+    x1.sort_values().plot.hist(title=txt)
+    plt.show()
 
-x2 = df_join.query("on_ground == 0")
-x2 = x2.groupby("key").size()
-assert min(x2) == 5
-txt = "Distribution of row count per key \nFilter: on_ground=0"
-x2.sort_values().plot.hist(title=txt)
-plt.show()
+    x2 = df_join.query("on_ground == 0")
+    x2 = x2.groupby("key").size()
+    assert min(x2) == 5
+    txt = "Distribution of row count per key \nFilter: on_ground=0"
+    x2.sort_values().plot.hist(title=txt)
+    plt.show()
 
 
 # ## Set up X df
@@ -136,13 +167,27 @@ def add_col_suffixes(cols: List = None) -> List:
 # train data
 df_X_train = pull_values_by_index_from_on_ground(df_adsb_train, cols_X)
 df_train = df_X_train.merge(df_qar_train, on="key")
+df_X_train = df_X_train.drop(columns=["key"])
 df_y_train = df_train["touchdown_distance"]
 
-# test data
-df_X_test = pull_values_by_index_from_on_ground(df_adsb_test, cols_X)
-df_test = df_X_test.merge(df_qar_test)
-df_y_test = df_test["touchdown_distance"]
+# validation data
+df_X_validation = pull_values_by_index_from_on_ground(df_adsb_validation, cols_X)
+df_validation = df_X_validation.merge(df_qar_validation, on="key")
+df_X_validation = df_X_validation.drop(columns="key")
+df_y_validation = df_validation["touchdown_distance"]
+
+# todo: set up test data
 
 
-reg = LazyRegressor()
-models, preds = reg.fit(df_X_train, df_X_test, df_y_train, df_y_test)
+# ## Compare several models:
+reg = LazyRegressor(verbose=1, ignore_warnings=True, custom_metric=None)
+models, preds = reg.fit(df_X_train, df_X_validation, df_y_train, df_y_validation)
+models.sort_values(["RMSE"])
+assert models.sort_values(["RMSE"]).index[0] == "RandomForestRegressor"
+
+
+# ## Train RandomForestRegressor
+# rfreg = RandomForestRegressor().fit(df)  # todo: set up test data
+
+
+# ## Submission on test data:
