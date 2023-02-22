@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 import pdpipe as pdp
 from lazypredict.Supervised import LazyRegressor
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.impute import SimpleImputer
 
 desired_width = 320
 pd.set_option("display.width", desired_width)
@@ -19,6 +20,8 @@ pd.set_option("display.max_columns", 16)
 np.set_printoptions(linewidth=desired_width)
 
 data_path = Path(r"C:\Nayef\icarus\data")
+
+random.seed(2023)
 
 # ## Read in data
 
@@ -198,8 +201,9 @@ df_validation = df_X_validation.merge(df_qar_validation, on="key")
 df_X_validation = drop_cols_for_training(df_X_validation)
 df_y_validation = df_validation["touchdown_distance"]
 
-# todo: set up test data
-
+# test data: inference only
+df_X_test = pull_values_by_index_from_on_ground(df_adsb_test, cols_X)
+df_X_test = drop_cols_for_training(df_X_test)
 
 # ## Compare several models:
 reg = LazyRegressor(
@@ -207,18 +211,27 @@ reg = LazyRegressor(
 )
 models, preds = reg.fit(df_X_train, df_X_validation, df_y_train, df_y_validation)
 models.sort_values(["RMSE"])
-assert models.sort_values(["RMSE"]).index[0] == "GradientBoostingRegressor"
+assert models.sort_values(["RMSE"]).index[0] == "ExtraTreesRegressor"
 
 
 # ## Train RandomForestRegressor manually and compare with LazyRegressor result
 
 
-def impute_colums(df_train: pd.DataFrame) -> pd.DataFrame:
-    # todo: finish this.
-    pass
+def impute(df_train: pd.DataFrame, cols: List) -> pd.DataFrame:
+    imputer = SimpleImputer(missing_values=np.nan, strategy="mean")
+    df = pd.DataFrame(imputer.fit_transform(df_train), columns=cols)
+    return df
 
 
-gb = GradientBoostingRegressor().fit(df_X_train, df_y_train)
+cols = df_X_train.columns
+df_X_train_imputed = impute(df_X_train, cols=cols)
+df_X_validation_imputed = impute(df_X_validation, cols=cols)
 
+etree = ExtraTreesRegressor().fit(df_X_train_imputed, df_y_train)
+etree.score(df_X_validation_imputed, df_y_validation)
 
 # ## Submission on test data:
+df_X_test_imputed = impute(df_X_test, cols=cols)
+preds = etree.predict(df_X_test_imputed)
+
+# todo: format correctly for submission
