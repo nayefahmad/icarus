@@ -7,9 +7,16 @@ from pathlib import Path
 from typing import List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pdpipe as pdp
 from lazypredict.Supervised import LazyRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+
+desired_width = 320
+pd.set_option("display.width", desired_width)
+pd.set_option("display.max_columns", 16)
+np.set_printoptions(linewidth=desired_width)
 
 data_path = Path(r"C:\Nayef\icarus\data")
 
@@ -164,30 +171,54 @@ def add_col_suffixes(cols: List = None) -> List:
     return cols_suffixed
 
 
+def drop_cols_for_training(df_train: pd.DataFrame) -> pd.DataFrame:
+    df = df_train.drop(
+        columns=[
+            "key",
+            "track_0",
+            "track_plus1",
+            "geometric_vertical_rate_0",
+            "geometric_vertical_rate_plus1",
+            "geometric_height_0",
+            "geometric_height_plus1",
+        ]
+    )
+    return df
+
+
 # train data
 df_X_train = pull_values_by_index_from_on_ground(df_adsb_train, cols_X)
 df_train = df_X_train.merge(df_qar_train, on="key")
-df_X_train = df_X_train.drop(columns=["key"])
+df_X_train = drop_cols_for_training(df_X_train)
 df_y_train = df_train["touchdown_distance"]
 
 # validation data
 df_X_validation = pull_values_by_index_from_on_ground(df_adsb_validation, cols_X)
 df_validation = df_X_validation.merge(df_qar_validation, on="key")
-df_X_validation = df_X_validation.drop(columns="key")
+df_X_validation = drop_cols_for_training(df_X_validation)
 df_y_validation = df_validation["touchdown_distance"]
 
 # todo: set up test data
 
 
 # ## Compare several models:
-reg = LazyRegressor(verbose=1, ignore_warnings=True, custom_metric=None)
+reg = LazyRegressor(
+    verbose=1, ignore_warnings=False, custom_metric=None, random_state=2023
+)
 models, preds = reg.fit(df_X_train, df_X_validation, df_y_train, df_y_validation)
 models.sort_values(["RMSE"])
-assert models.sort_values(["RMSE"]).index[0] == "RandomForestRegressor"
+assert models.sort_values(["RMSE"]).index[0] == "GradientBoostingRegressor"
 
 
-# ## Train RandomForestRegressor
-# rfreg = RandomForestRegressor().fit(df)  # todo: set up test data
+# ## Train RandomForestRegressor manually and compare with LazyRegressor result
+
+
+def impute_colums(df_train: pd.DataFrame) -> pd.DataFrame:
+    # todo: finish this.
+    pass
+
+
+gb = GradientBoostingRegressor().fit(df_X_train, df_y_train)
 
 
 # ## Submission on test data:
