@@ -235,3 +235,4 @@ df_X_test_imputed = impute(df_X_test, cols=cols)
 preds = etree.predict(df_X_test_imputed)
 
 # todo: format correctly for submission
+#  Cols: key, touchdown_distance, exclude
