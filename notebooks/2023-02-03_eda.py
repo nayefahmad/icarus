@@ -2,6 +2,7 @@
 
 import math
 import random
+from datetime import datetime
 from itertools import chain
 from pathlib import Path
 from typing import List
@@ -20,6 +21,7 @@ pd.set_option("display.max_columns", 16)
 np.set_printoptions(linewidth=desired_width)
 
 data_path = Path(r"C:\Nayef\icarus\data")
+dst_path = Path(r"C:\Nayef\icarus\dst")
 
 random.seed(2023)
 
@@ -175,17 +177,17 @@ def add_col_suffixes(cols: List = None) -> List:
 
 
 def drop_cols_for_training(df_train: pd.DataFrame) -> pd.DataFrame:
+    # todo: retain `key` as the index
     df = df_train.drop(
         columns=[
-            "key",
             "track_0",
             "track_plus1",
             "geometric_vertical_rate_0",
             "geometric_vertical_rate_plus1",
             "geometric_height_0",
             "geometric_height_plus1",
-        ]
-    )
+        ],
+    ).set_index("key")
     return df
 
 
@@ -219,7 +221,8 @@ assert models.sort_values(["RMSE"]).index[0] == "ExtraTreesRegressor"
 
 def impute(df_train: pd.DataFrame, cols: List) -> pd.DataFrame:
     imputer = SimpleImputer(missing_values=np.nan, strategy="mean")
-    df = pd.DataFrame(imputer.fit_transform(df_train), columns=cols)
+    index = df_train.index
+    df = pd.DataFrame(imputer.fit_transform(df_train), columns=cols, index=index)
     return df
 
 
@@ -234,5 +237,15 @@ etree.score(df_X_validation_imputed, df_y_validation)
 df_X_test_imputed = impute(df_X_test, cols=cols)
 preds = etree.predict(df_X_test_imputed)
 
-# todo: format correctly for submission
-#  Cols: key, touchdown_distance, exclude
+df_submission = pd.DataFrame(
+    {"key": df_X_test_imputed.index, "touchdown_distance": preds, "exclude": 0}
+)
+
+
+def save_submission_csv(df: pd.DataFrame):
+    current_time = datetime.now()
+    formatted_time = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+    df.to_csv(dst_path.joinpath(f"ahmad{formatted_time}_3327735.csv"), index=False)
+
+
+save_submission_csv(df_submission)
